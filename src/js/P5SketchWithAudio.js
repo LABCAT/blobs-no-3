@@ -4,6 +4,10 @@ import "p5/lib/addons/p5.sound";
 import * as p5 from "p5";
 import { Midi } from '@tonejs/midi'
 import PlayIcon from './functions/PlayIcon.js';
+import AnimatedBlob from './classes/AnimatedBlob.js';
+
+import blobshape from "blobshape";
+import { TriadicColourCalculator } from './functions/ColourCalculators';
 
 import audio from "../audio/blobs-no-3.ogg";
 import midi from "../audio/blobs-no-3.mid";
@@ -32,16 +36,10 @@ const P5SketchWithAudio = () => {
             Midi.fromUrl(midi).then(
                 function(result) {
                     console.log(result);
-                    const noteSet1 = result.tracks[4].notes.filter(note => note.midi !== 43); // Redrum - roland tr-808 (kit01)
+                    const noteSet1 = result.tracks[19].notes; // Wave Layers Edition - Mallet Bass
                     p.scheduleCueSet(noteSet1, 'executeCueSet1');
-                    const noteSet2 = result.tracks[2].notes; // Subtrator - Raison d'etre
-                    p.scheduleCueSet(noteSet2, 'executeCueSet2');
-                    const noteSet3 = result.tracks[9].notes; // Subtrator - Vibra
-                    p.scheduleCueSet(noteSet3, 'executeCueSet3');
-                    const noteSet4 = result.tracks[5].notes; // Europa - Night Driver
-                    p.scheduleCueSet(noteSet4, 'executeCueSet4');
-                    const noteSet5 = result.tracks[6].notes; // Europa - Impact Square
-                    p.scheduleCueSet(noteSet5, 'executeCueSet5');
+                    const noteSet2 = result.tracks[21].notes; 
+                    p.scheduleCueSet(noteSet2, 'executeCueSet2'); // Europa - Blower Bass
                     p.audioLoaded = true;
                     document.getElementById("loader").classList.add("loading--complete");
                     document.getElementById("play-icon").classList.remove("fade-out");
@@ -70,162 +68,114 @@ const P5SketchWithAudio = () => {
             }
         } 
 
-        p.gridCells = [];
+        p.animatedBlobs = [];
 
-        p.bgRect = null;
+        p.blobsArray = [];
 
         p.setup = () => {
             p.canvas = p.createCanvas(p.canvasWidth, p.canvasHeight);
             p.colorMode(p.HSB);
-            p.rectMode(p.CENTER);
-            p.background(0, 0, 0, 0.5);
-            p.strokeWeight(3);
-            let maxX = 16;
-            let maxY = 8;
-            p.horizontalGrid = true;
-            p.cellSize = p.height / 9;
-            if(p.height > p.width) {
-                p.horizontalGrid = false; 
-                p.cellSize = p.width / 9;
-                maxX = 8;
-                maxY = 16;
-            } 
-
-            for (let x = 0; x < maxX; x++) {
-                for (let y = 0; y < maxY; y++) {
-                    p.gridCells.push(
-                        {
-                            x: x * p.cellSize,
-                            y: y * p.cellSize,
-                            size: p.cellSize * 0.9,
-                            pattern: undefined
-                        }
-                    )
-                }
-            }
-
-            p.translateX = (p.width - (maxX * p.cellSize)) / 2 + (p.cellSize / 2);
-            p.translateY = (p.height - (maxY * p.cellSize)) / 2 + (p.cellSize / 2);
-            p.translate(p.translateX, p.translateY);
+            p.background(0, 0, 0);
         }
 
         p.draw = () => {
             p.background(0, 0, 0);
-            p.translate(p.translateX, p.translateY);
+            if(p.audioLoaded && p.song.isPlaying()){
+                p.strokeWeight(4);
 
-            if(p.bgRect) {
-                const { width, height, hue } = p.bgRect;
-                const x = p.width / 2 - p.translateX;
-                const y = p.height / 2 - p.translateY;
-                p.stroke(hue, 100, 100, 0);
-                p.fill(hue, 100, 100, 0.2);
-                p.rect(x, y, width, height);
-                p.fill(hue, 100, 100, 0.4);
-                p.rect(x, y, width / 2, height / 2);
-                p.fill(hue, 100, 100, 0.6);
-                p.rect(x, y, width / 4, height / 4);
-                p.bgRect.width = p.bgRect.width + p.width / 10;
-                p.bgRect.height = p.bgRect.height + p.height / 10;
-            }
-
-            p.stroke(0, 0, 0);
-
-            for (let i = 0; i < p.gridCells.length; i++) {
-                const cell = p.gridCells[i];
-                const { x, y, size, pattern } = cell;
-                if(pattern === undefined) {
-                    p.stroke(0, 0, 100);
-                    p.fill(0, 0, 100);
-                    p.rect(x, y, size, size);
-                } 
-                else {
-                    p.fill(0, 0, 0);
-                    p.rect(x, y, size, size);
-                    p.stroke(pattern.hue, 100, 100);
-                    p.fill(pattern.hue, 100, 100, 0.25);
-                    p.rect(x, y, size, size);
-                    pattern.update();
-                    pattern.draw();
+                for (let i = 0; i < p.animatedBlobs.length; i++) {
+                    const blob = p.animatedBlobs[i];
+                    blob.draw();
+                    blob.update();
                 }
-            }
-            p.translate(-p.translateX, -p.translateY);
-        }
 
-        p.executeCueSet1 = (note) => {
-            const { currentCue } = note; 
-            if(currentCue % 29 === 1 && currentCue < 120) {
-                p.gridCells.forEach(cell => {
-                    cell.pattern = undefined;
-                });
-            }
-        }
+                p.strokeWeight(2);
 
-        // Subtrator - Raison d'etre
-        p.executeCueSet2 = (note) => {
-            const emptyCells = p.gridCells.filter(cell => cell.pattern === undefined);
-            const randomCell = p.random(emptyCells);
-            randomCell.pattern = new AnimatedRectangle(
-                p,
-                randomCell.x - (randomCell.size / 2),
-                randomCell.y - (randomCell.size / 2),
-                randomCell.size,
-                0
-            );
-        }
+                for (let i = 0; i < p.blobsArray.length; i++) {
+                    const blob = p.blobsArray[i];
+                    const { x, y, growth, edges, colourSet, divisor, seed } = blob;
 
-        // Subtrator - Vibra
-        p.executeCueSet3 = (note) => {
-            const emptyCells = p.gridCells.filter(cell => cell.pattern === undefined);
-            const randomCell = p.random(emptyCells);
-            randomCell.pattern = new AnimatedRectangle(
-                p,
-                randomCell.x - (randomCell.size / 2),
-                randomCell.y - (randomCell.size / 2),
-                randomCell.size,
-                210
-            );
-        }
-
-        // Europa - Night Driver
-        p.executeCueSet4 = (note) => {
-            const emptyCells = p.gridCells.filter(cell => cell.pattern === undefined);
-            const randomCell = p.random(emptyCells);
-            randomCell.pattern = new AnimatedRectangle(
-                p,
-                randomCell.x - (randomCell.size / 2),
-                randomCell.y - (randomCell.size / 2),
-                randomCell.size,
-                90
-            );
-        }
-
-        p.impactHues = [330, 30, 60, 180, 270, 300]
-
-        p.currentImpactHue = 330;
-
-        // Europa - Impact Square
-        p.executeCueSet5 = (note) => {
-            const { durationTicks, currentCue } = note;
-            if(currentCue % 12 === 0) {
-                p.currentImpactHue = p.random(p.impactHues.filter(hue => hue !== p.currentImpactHue));
-            }
-            const emptyCells = p.gridCells.filter(cell => cell.pattern === undefined);
-            const randomCell = p.random(emptyCells);
-            randomCell.pattern = new AnimatedRectangle(
-                p,
-                randomCell.x - (randomCell.size / 2),
-                randomCell.y - (randomCell.size / 2),
-                randomCell.size,
-                p.currentImpactHue
-            );
-            if(durationTicks > 19000) {
-                p.bgRect = {
-                    width: p.width / 1000,
-                    height: p.height / 1000,
-                    hue: p.currentImpactHue
+                    p.drawBlob(x, y, (p.width / (divisor * 0.9)), growth, edges, colourSet[0], seed);
+                    p.drawBlob(x, y, (p.width / (divisor * 1.2)), growth, edges, colourSet[1], seed);
+                    p.drawBlob(x, y, (p.width / (divisor * 1.5)), growth, edges, colourSet[2], seed);
                 }
             }
         }
+
+        p.drawBlob = (x, y, size, growth, edges, color, seed) => {
+            const { path } = blobshape({ size: size, growth: growth, edges: edges, seed: seed });
+            const pathArray = p.parseSVGPath(path);
+            p.translate(x - (size / 2), y - (size / 2));
+            p.fill(
+                color._getHue(),
+                100,
+                100,
+                0.5
+            );
+            p.stroke(
+                color._getHue(),
+                100,
+                100,
+                1
+            );
+            p.beginShape();
+            for (let cmd of pathArray) {
+                let command = cmd[0];
+                let params = cmd.slice(1);
+                
+                if (command === 'M') {
+                    p.vertex(params[0], params[1]);
+                } else if (command === 'Q') {
+                    p.quadraticVertex(params[0], params[1], params[2], params[3]);
+                }
+            }
+            p.endShape(p.CLOSE);
+            p.translate(-x + (size / 2), -y + (size / 2));
+        }
+
+        p.parseSVGPath = (pathData) => {
+            let commands = pathData.match(/[a-df-z][^a-df-z]*/gi);
+            let pathArray = [];
+            
+            for (let cmd of commands) {
+                let command = cmd.charAt(0);
+                let params = cmd.slice(1).split(/[\s,]+/).map(Number);
+                pathArray.push([command, ...params]);
+            }
+            
+            return pathArray;
+        }
+
+        p.sizes = [8, 12, 16, 24, 32];
+
+        p.executeCueSet1 = () => {
+            const divisor = p.random(p.sizes);
+            const hue = p.random(0, 360);
+            p.blobsArray.push({
+                x: p.random(0, p.width),
+                y: p.random(0, p.height),
+                growth: parseInt(p.random(3, 9)),
+                edges: parseInt(p.random(8, 16)),
+                colourSet: TriadicColourCalculator(p, hue),
+                divisor: divisor,
+                seed: p.random(1, 10)
+            });
+        }
+
+        p.executeCueSet2 = ({currentCue}) => {
+            console.log(currentCue);
+            if(currentCue % 12 === 1) {
+                p.animatedBlobs = [];
+            }
+            // const x = p.random(p.width / 2 - p.width / 8, p.width / 2 + p.width / 8);
+            // const y = p.random(p.height / 2 - p.height / 8, p.height / 2 + p.height / 8);
+            const x = p.random(0, p.width);
+            const y = p.random(0, p.height);
+            p.animatedBlobs.push(
+                new AnimatedBlob(p, x, y)
+            );
+        }
+
 
         p.hasStarted = false;
 
