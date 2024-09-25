@@ -79,8 +79,8 @@ const P5SketchWithAudio = () => {
         }
 
         p.draw = () => {
-            p.background(0, 0, 0);
             if(p.audioLoaded && p.song.isPlaying()){
+                p.background(0, 0, 0);
                 p.strokeWeight(4);
 
                 for (let i = 0; i < p.animatedBlobs.length; i++) {
