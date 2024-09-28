@@ -93,16 +93,16 @@ const P5SketchWithAudio = () => {
 
                 for (let i = 0; i < p.blobsArray.length; i++) {
                     const blob = p.blobsArray[i];
-                    const { x, y, growth, edges, colourSet, divisor, seed } = blob;
+                    const { x, y, growth, edges, colourSet, divisor, seed, whiteStroke } = blob;
 
-                    p.drawBlob(x, y, (p.width / (divisor * 0.9)), growth, edges, colourSet[0], seed);
-                    p.drawBlob(x, y, (p.width / (divisor * 1.2)), growth, edges, colourSet[1], seed);
-                    p.drawBlob(x, y, (p.width / (divisor * 1.5)), growth, edges, colourSet[2], seed);
+                    p.drawBlob(x, y, (p.width / (divisor * 0.9)), growth, edges, colourSet[0], seed, whiteStroke);
+                    p.drawBlob(x, y, (p.width / (divisor * 1.2)), growth, edges, colourSet[1], seed, false);
+                    p.drawBlob(x, y, (p.width / (divisor * 1.5)), growth, edges, colourSet[2], seed, whiteStroke);
                 }
             }
         }
 
-        p.drawBlob = (x, y, size, growth, edges, color, seed) => {
+        p.drawBlob = (x, y, size, growth, edges, color, seed, whiteStroke) => {
             const { path } = blobshape({ size: size, growth: growth, edges: edges, seed: seed });
             const pathArray = p.parseSVGPath(path);
             p.translate(x - (size / 2), y - (size / 2));
@@ -114,7 +114,7 @@ const P5SketchWithAudio = () => {
             );
             p.stroke(
                 color._getHue(),
-                100,
+                whiteStroke ? 0 : 100,
                 100,
                 1
             );
@@ -147,28 +147,62 @@ const P5SketchWithAudio = () => {
         }
 
         p.sizes = [8, 12, 16, 24, 32];
+        p.maxEdges = 16;
 
-        p.executeCueSet1 = () => {
-            const divisor = p.random(p.sizes);
-            const hue = p.random(0, 360);
-            p.blobsArray.push({
-                x: p.random(0, p.width),
-                y: p.random(0, p.height),
-                growth: parseInt(p.random(3, 9)),
-                edges: parseInt(p.random(8, 16)),
-                colourSet: TriadicColourCalculator(p, hue),
-                divisor: divisor,
-                seed: p.random(1, 10)
-            });
-        }
+        p.executeCueSet1 = ({currentCue}) => {
+            if(currentCue === 37){
+                p.blobsArray = [];
+                p.sizes = [8, 12, 16];
+                p.maxEdges = 32;
+            }
+            let tries = 0;
+            const maxTries = 100;  // Limit the number of attempts to avoid infinite loops
+
+            let isOverlapping = true;
+            while (isOverlapping && tries < maxTries) {
+                const divisor = p.random(p.sizes);
+                const hue = p.random(0, 360);
+                const newCircle = {
+                    x: p.random(0, p.width),
+                    y: p.random(0, p.height),
+                    radius: p.width / (divisor * 0.9) / 2,
+                    growth: parseInt(p.random(3, 9)),
+                    edges: parseInt(p.random(8, p.maxEdges)),
+                    colourSet: TriadicColourCalculator(p, hue),
+                    divisor: divisor,
+                    seed: p.random(1, 10),
+                    whiteStroke: [9, 10, 11, 0].includes(currentCue % 12)
+                };
+
+                isOverlapping = false;
+
+                // Check against all existing circles for overlap
+                for (let i = 0; i < p.blobsArray.length; i++) {
+                    const existingCircle = p.blobsArray[i];
+                    const dist = p.dist(newCircle.x, newCircle.y, existingCircle.x, existingCircle.y);
+                    if (dist < newCircle.radius + existingCircle.radius) {
+                        isOverlapping = true;
+                        break;
+                    }
+                }
+
+                tries++;
+                // If no overlap, add it to the array
+                if (!isOverlapping) {
+                    p.blobsArray.push(newCircle);
+                }
+            }
+
+            // Optionally handle case where maxTries was reached without success
+            if (tries >= maxTries) {
+                console.log("Max attempts reached. Could not place the circle without overlap.");
+            }
+        };
 
         p.executeCueSet2 = ({currentCue}) => {
-            console.log(currentCue);
             if(currentCue % 12 === 1) {
                 p.animatedBlobs = [];
             }
-            // const x = p.random(p.width / 2 - p.width / 8, p.width / 2 + p.width / 8);
-            // const y = p.random(p.height / 2 - p.height / 8, p.height / 2 + p.height / 8);
             const x = p.random(0, p.width);
             const y = p.random(0, p.height);
             p.animatedBlobs.push(
